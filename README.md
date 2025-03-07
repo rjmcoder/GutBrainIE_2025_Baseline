@@ -7,6 +7,8 @@ Users have three main options:
 - **Test with pre-trained models:** Directly import our fine-tuned models for generating and evaluating predictions.
 - **Evaluate provided outputs:** Use the supplied model outputs and directly run the evaluation as detailed in the TL;DR section.
 
+Evaluation results on the dev set and on all of the training sets, along with detailed explanations of the employed evaluation metrics, are available at the [CHALLENGE WEBSITE](https://hereditary.dei.unipd.it/challenges/gutbrainie/2025/).
+
 ---
 
 ## Getting Started
@@ -20,7 +22,7 @@ Users have three main options:
 ## Quick Start (TL;DR)
 1. **Evaluate Baseline Predictions:**
    - Execute the script `Eval/evaluate.py` to generate evaluation results.
-   - This step will evaluate the baseline predictions contained in `Eval/org_*`.
+   - This step will evaluate the baseline predictions on the dev set contained in `Eval/org_*`.
 2. **Evaluate Your Predictions:**
    - Format your predictions in the submission format, as the files `Eval/org_*`.
    - Open the script `Eval/evaluate.py` and adjust the paths to point to your prediction files.
