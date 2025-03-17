@@ -29,5 +29,5 @@ distant_train_data = train_bronze
 json.dump(annotated_train_data, open("data/train_annotated.json", 'w', encoding='utf-8'))
 print("Annotated training set for RE saved to data/train_annotated.json")
 
-json.dump(annotated_train_data, open("data/train_distant.json", 'w', encoding='utf-8'))
+json.dump(distant_train_data, open("data/train_distant.json", 'w', encoding='utf-8'))
 print("Distant training set for RE saved to data/train_distant.json")
