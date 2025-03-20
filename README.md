@@ -7,7 +7,7 @@ Users have three main options:
 - **Test with pre-trained models:** Directly import our fine-tuned models for generating and evaluating predictions.
 - **Evaluate provided outputs:** Use the supplied model outputs and directly run the evaluation as detailed in the TL;DR section.
 
-Evaluation results on the dev set and on all of the training sets, along with detailed explanations of the employed evaluation metrics, are available at the [CHALLENGE WEBSITE](https://hereditary.dei.unipd.it/challenges/gutbrainie/2025/).
+Evaluation results on the dev set and on all of the training sets, along with detailed explanations of the employed evaluation metrics, are available at the [CHALLENGE WEBSITE](https://hereditary.dei.unipd.it/challenges/gutbrainie/2025/). These results are obtained by training the NER model on the platinum, gold, and silver collections, while for the RE model the platinum, gold, and silver collections were used as manually annotated sets, and the bronze collection as the distantly supervised annotated set.
 
 ---
 
