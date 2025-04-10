@@ -1,4 +1,8 @@
 import json
+import os
+
+# set the current working directory to the directory of the script
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # DEFINE HERE THE PATH(S) TO YOUR PREDICTIONS
 PREDICTIONS_PATH_6_1 = 'org_T61_BaselineRun_NuNerZero.json'
@@ -8,9 +12,9 @@ PREDICTIONS_PATH_6_4 = 'org_T623_BaselineRun_ATLOP.json'
 
 # DEFINE HERE FOR WHICH SUBTASK(S) YOU WANT TO EVAL YOUR PREDICTIONS
 eval_6_1_NER = True
-eval_6_2_binary_tag_RE = True
-eval_6_3_ternary_tag_RE = True
-eval_6_4_ternary_mention_RE = True
+eval_6_2_binary_tag_RE = False #True
+eval_6_3_ternary_tag_RE = False #True
+eval_6_4_ternary_mention_RE = False #True
 
 GROUND_TRUTH_PATH = "../Annotations/Dev/json_format/dev.json"
 try:

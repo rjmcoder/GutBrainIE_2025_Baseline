@@ -5,6 +5,12 @@ import torch
 from tqdm import tqdm
 from transformers import get_cosine_schedule_with_warmup
 import os
+import shutil
+
+# set the current working directory to the directory of the script
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 from importlib.metadata import version
 version('GLiNER')
@@ -84,10 +90,10 @@ from types import SimpleNamespace
 
 # Define the hyperparameters in a config variable
 config = SimpleNamespace(
-    num_steps=3000, # regulate number train, eval steps depending on the data size
-    eval_every=200,
+    num_steps=5001, # 3000 # regulate number train, eval steps depending on the data size
+    eval_every=2500, #200,
     
-    train_batch_size=8, # regulate batch size depending on GPU memory available.
+    train_batch_size=2, # regulate batch size depending on GPU memory available.
     
     max_len=384, # maximum sentence length. 2048 for NuNerZero_long_context
     
@@ -213,7 +219,8 @@ if finetune_model:
     print('## SAVING TRAINED MODEL ##')
     output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
     model.save_pretrained(output_path)
-    os.system(f'cp {output_path}/gliner_config.json {output_path}/config.json')
+    # os.system(f'cp {output_path}/gliner_config.json {output_path}/config.json')
+    shutil.copy(f"{output_path}/gliner_config.json", f"{output_path}/config.json")
     md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
 if generate_predictions:
