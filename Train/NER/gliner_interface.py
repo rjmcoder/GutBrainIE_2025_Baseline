@@ -4,8 +4,10 @@ from gliner import GLiNER
 import torch
 from tqdm import tqdm
 from transformers import get_cosine_schedule_with_warmup
+from transformers import AutoTokenizer, AutoConfig
 import os
 import shutil
+from types import SimpleNamespace
 
 # set the current working directory to the directory of the script
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -15,9 +17,82 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 from importlib.metadata import version
 version('GLiNER')
 
+class DictNamespace(SimpleNamespace):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._dict = kwargs
+
+    def __contains__(self, key):
+        return key in self._dict
+
+    def __getitem__(self, key):
+        return self._dict[key]
+    
 # Set the GLiNER model to be used (from HuggingFace)
-model = GLiNER.from_pretrained("numind/NuNerZero")
-model_name = "NuNerZero"
+# model = GLiNER.from_pretrained("numind/NuNerZero")
+
+tokenizer = AutoTokenizer.from_pretrained("./gliner-biomed-tokenizer")
+
+# Add dummy tokens to pad tokenizer to size 128003
+tokens_to_add = 128004 - len(tokenizer)
+if tokens_to_add > 0:
+    print(f"Padding tokenizer with {tokens_to_add} dummy tokens")
+    new_tokens = [f"<dummy_{i}>" for i in range(tokens_to_add)]
+    tokenizer.add_tokens(new_tokens)
+
+# Save updated tokenizer
+tokenizer.save_pretrained("./patched-tokenizer")
+
+# # Load model
+# model = GLiNER.from_pretrained(
+#     "./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/",
+#     tokenizer_name_or_path="./patched-tokenizer",
+#     local_files_only=True
+# )
+
+
+
+# # Load tokenizer and patch
+# tokenizer = AutoTokenizer.from_pretrained("./patched-tokenizer")
+# print("Effective vocab size:", len(tokenizer))  # Should be 128003
+
+
+
+# Now resize model's embedding layer
+# model.token_rep_layer.bert_layer.model.resize_token_embeddings(len(tokenizer))
+
+
+
+
+
+# Load gliner_config.json manually
+with open("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/gliner_config.json") as f:
+    raw_config = json.load(f)
+
+# Wrap it
+gliner_config = DictNamespace(**raw_config)
+
+# Initialize model with config (weights NOT loaded yet)
+model = GLiNER(gliner_config)
+
+# Load raw model state dict from checkpoint
+checkpoint = torch.load("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/pytorch_model.bin", map_location="cpu")
+
+# Remove the mismatching weight entry manually
+checkpoint.pop("token_rep_layer.bert_layer.model.embeddings.word_embeddings.weight")
+
+# Load the rest of the model weights
+model.load_state_dict(checkpoint, strict=False)
+
+# Resize embedding layer BEFORE loading weights
+model.token_rep_layer.bert_layer.model.resize_token_embeddings(128004)
+
+# Now load the model weights manually
+# model.load_state_dict(
+#     torch.load("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/pytorch_model.bin", map_location="cpu")
+# )
+
+model_name = "gliner-biomed"
 
 # Define the confidence threshold to be used in evaluation
 THRESHOLD = 0.6 
@@ -86,14 +161,14 @@ for d in eval_data:
     new_data.append(new_d)
 eval_data = new_data
 
-from types import SimpleNamespace
+
 
 # Define the hyperparameters in a config variable
 config = SimpleNamespace(
     num_steps=5001, # 3000 # regulate number train, eval steps depending on the data size
     eval_every=2500, #200,
     
-    train_batch_size=2, # regulate batch size depending on GPU memory available.
+    train_batch_size=4, # regulate batch size depending on GPU memory available.
     
     max_len=384, # maximum sentence length. 2048 for NuNerZero_long_context
     
@@ -188,6 +263,7 @@ def train(model, config, train_data, eval_data=None):
             continue
 
         loss.backward()  # Compute gradients
+        torch.cuda.empty_cache()        # added to clear GPU memory
         optimizer.step()  # Update parameters
         scheduler.step()  # Update learning rate schedule
         optimizer.zero_grad()  # Reset gradients
@@ -218,13 +294,29 @@ if finetune_model:
 
     print('## SAVING TRAINED MODEL ##')
     output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
+
+    import types
+
+    def recursive_namespace_to_dict(obj):
+        if isinstance(obj, (types.SimpleNamespace, DictNamespace)):
+            return {k: recursive_namespace_to_dict(v) for k, v in vars(obj).items()}
+        elif isinstance(obj, dict):
+            return {k: recursive_namespace_to_dict(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [recursive_namespace_to_dict(v) for v in obj]
+        else:
+            return obj
+    
+    if model_name == "gliner-biomed":
+        model.config = recursive_namespace_to_dict(model.config)
+
     model.save_pretrained(output_path)
     # os.system(f'cp {output_path}/gliner_config.json {output_path}/config.json')
     shutil.copy(f"{output_path}/gliner_config.json", f"{output_path}/config.json")
     md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
 if generate_predictions:
-    output_path = f"outputs"
+    output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
     print(f"## LOADING PRE-TRAINED MODEL {output_path} ##")
     md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
