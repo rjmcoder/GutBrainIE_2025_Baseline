@@ -8,6 +8,7 @@ from transformers import AutoTokenizer, AutoConfig
 import os
 import shutil
 from types import SimpleNamespace
+import types
 
 # set the current working directory to the directory of the script
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -16,6 +17,10 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 from importlib.metadata import version
 version('GLiNER')
+
+using_pretrained = False
+finetune_model = False
+generate_predictions = True
 
 class DictNamespace(SimpleNamespace):
     def __init__(self, **kwargs):
@@ -92,18 +97,15 @@ model.token_rep_layer.bert_layer.model.resize_token_embeddings(128004)
 #     torch.load("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/pytorch_model.bin", map_location="cpu")
 # )
 
-model_name = "gliner-biomed"
+model_name = "gliner-biomed_finetuned"
 
 # Define the confidence threshold to be used in evaluation
 THRESHOLD = 0.6 
 
-# Define whether the code should be used for fine-tuning
-finetune_model = True
 
 # Define the path to articles for which the final trained will generate predicted entities
-generate_predictions = False
 PATH_ARTICLES = "../../Articles/json_format/articles_dev.json" 
-PATH_OUTPUT_NER_PREDICTIONS = "../../Predictions/NER/predicted_entities.json"
+PATH_OUTPUT_NER_PREDICTIONS = "../../Predictions/NER/gliner_biomed_finetuned_predicted_entities.json"
 
 print('## LOADING TRAINING DATA ##')
 PATH_PLATINUM_TRAIN = "data/train_platinum.json"
@@ -209,6 +211,16 @@ eval_data = {
     "samples": eval_data
 }
 
+def recursive_namespace_to_dict(obj):
+    if isinstance(obj, (types.SimpleNamespace, DictNamespace)):
+        return {k: recursive_namespace_to_dict(v) for k, v in vars(obj).items()}
+    elif isinstance(obj, dict):
+        return {k: recursive_namespace_to_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [recursive_namespace_to_dict(v) for v in obj]
+    else:
+        return obj
+        
 print('## DEFINING TRAINING FUNCTION ##') 
 def train(model, config, train_data, eval_data=None):
     model = model.to(config.device)
@@ -284,7 +296,12 @@ def train(model, config, train_data, eval_data=None):
             if not os.path.exists(config.save_directory):
                 os.makedirs(config.save_directory)
 
-            model.save_pretrained(f"{config.save_directory}/finetuned_{step}")
+            if model_name == "gliner-biomed_finetuned":
+                model.config = recursive_namespace_to_dict(model.config)
+                output_path = f"{config.save_directory}/{model_name}_finetuned_{step}"
+                model.save_pretrained(output_path)
+            else:
+                model.save_pretrained(f"{config.save_directory}/finetuned_{step}")
 
             model.train()
 
@@ -294,20 +311,8 @@ if finetune_model:
 
     print('## SAVING TRAINED MODEL ##')
     output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
-
-    import types
-
-    def recursive_namespace_to_dict(obj):
-        if isinstance(obj, (types.SimpleNamespace, DictNamespace)):
-            return {k: recursive_namespace_to_dict(v) for k, v in vars(obj).items()}
-        elif isinstance(obj, dict):
-            return {k: recursive_namespace_to_dict(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [recursive_namespace_to_dict(v) for v in obj]
-        else:
-            return obj
     
-    if model_name == "gliner-biomed":
+    if model_name == "gliner-biomed_finetuned":
         model.config = recursive_namespace_to_dict(model.config)
 
     model.save_pretrained(output_path)
@@ -318,7 +323,12 @@ if finetune_model:
 if generate_predictions:
     output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
     print(f"## LOADING PRE-TRAINED MODEL {output_path} ##")
-    md = GLiNER.from_pretrained(output_path, local_files_only=True)
+
+    if using_pretrained:
+        md = model  # Load the pre-trained model as is
+    else:
+        output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
+        md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
     print(f"## GENERATING NER PREDICTIONS FOR {PATH_ARTICLES}")
     with open(PATH_ARTICLES, 'r', encoding='utf-8') as file:
@@ -330,6 +340,9 @@ if generate_predictions:
     # Dictionary to hold predicted entities
     # PMID -> {{'start_idx': ..., 'end_idx': ..., 'text_span': ..., 'entity_label': ..., 'score': ...}, ...}
     predictions = {} 
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    md.to(device)  # move model to GPU/CPU
 
     for pmid, content in tqdm(articles.items(), total=len(articles), desc="Predicting entities..."):
         title = content['title']

@@ -1,0 +1,39 @@
+# NuNerZero finetuned
+Macro-precision: 0.6627
+Macro-recall: 0.7473
+Macro-F1: 0.6917
+Micro-precision: 0.7561
+Micro-recall: 0.8272
+Micro-F1: 0.7901
+
+# Gliner pretrained (without any fine-tuning)
+Macro-precision: 0.5037
+Macro-recall: 0.3484
+Macro-F1: 0.3889
+Micro-precision: 0.6034
+Micro-recall: 0.2507
+Micro-F1: 0.3542
+
+# Gliner finetuned
+Macro-precision: 0.5902
+Macro-recall: 0.7501
+Macro-F1: 0.6486
+Micro-precision: 0.6943
+Micro-recall: 0.8317
+Micro-F1: 0.7568
+
+# Gliner-biomed pretrained (without any fine-tuning)
+Macro-precision: 0.3762
+Macro-recall: 0.558
+Macro-F1: 0.4296
+Micro-precision: 0.4678
+Micro-recall: 0.4226
+Micro-F1: 0.444
+
+# Gliner-biomed finetuned
+Macro-precision: 0.6118
+Macro-recall: 0.78
+Macro-F1: 0.671
+Micro-precision: 0.7134
+Micro-recall: 0.8469
+Micro-F1: 0.7745

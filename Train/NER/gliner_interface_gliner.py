@@ -15,20 +15,21 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 from importlib.metadata import version
 version('GLiNER')
 
+
+using_pretrained = False
+finetune_model = False
+generate_predictions = True
+
 # Set the GLiNER model to be used (from HuggingFace)
-model = GLiNER.from_pretrained("numind/NuNerZero")
-model_name = "NuNerZero"
+model = GLiNER.from_pretrained("urchade/gliner_medium-v2.1")
+model_name = "gliner_medium-v2.1_finetuned"
 
 # Define the confidence threshold to be used in evaluation
 THRESHOLD = 0.6 
 
-# Define whether the code should be used for fine-tuning
-finetune_model = True
-
 # Define the path to articles for which the final trained will generate predicted entities
-generate_predictions = False
 PATH_ARTICLES = "../../Articles/json_format/articles_dev.json" 
-PATH_OUTPUT_NER_PREDICTIONS = "../../Predictions/NER/predicted_entities.json"
+PATH_OUTPUT_NER_PREDICTIONS = "../../Predictions/NER/gliner_medium_v2.1_finetuned_predicted_entities.json"
 
 print('## LOADING TRAINING DATA ##')
 PATH_PLATINUM_TRAIN = "data/train_platinum.json"
@@ -226,7 +227,11 @@ if finetune_model:
 if generate_predictions:
     output_path = f"outputs"
     print(f"## LOADING PRE-TRAINED MODEL {output_path} ##")
-    md = GLiNER.from_pretrained(output_path, local_files_only=True)
+    if using_pretrained:
+        md = model  # Load the pre-trained model as is
+    else:
+        output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
+        md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
     print(f"## GENERATING NER PREDICTIONS FOR {PATH_ARTICLES}")
     with open(PATH_ARTICLES, 'r', encoding='utf-8') as file:
