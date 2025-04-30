@@ -9,6 +9,7 @@ import os
 import shutil
 from types import SimpleNamespace
 import types
+import matplotlib.pyplot as plt
 
 # set the current working directory to the directory of the script
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -19,8 +20,8 @@ from importlib.metadata import version
 version('GLiNER')
 
 using_pretrained = False
-finetune_model = False
-generate_predictions = True
+finetune_model = True
+generate_predictions = False
 
 class DictNamespace(SimpleNamespace):
     def __init__(self, **kwargs):
@@ -66,38 +67,63 @@ tokenizer.save_pretrained("./patched-tokenizer")
 # Now resize model's embedding layer
 # model.token_rep_layer.bert_layer.model.resize_token_embeddings(len(tokenizer))
 
+load_fine_tuned = True
 
+if load_fine_tuned:
 
+    # Load gliner_config.json manually
+    with open("./outputs/gliner-biomed_finetuned_finetuned2_T60.0/gliner_config.json") as f:
+        raw_config = json.load(f)
 
+    # Wrap it
+    gliner_config = DictNamespace(**raw_config)
 
-# Load gliner_config.json manually
-with open("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/gliner_config.json") as f:
-    raw_config = json.load(f)
+    # Initialize model with config (weights NOT loaded yet)
+    model = GLiNER(gliner_config)
 
-# Wrap it
-gliner_config = DictNamespace(**raw_config)
+    # Load raw model state dict from checkpoint
+    checkpoint = torch.load("./outputs/gliner-biomed_finetuned_finetuned2_T60.0/pytorch_model.bin", map_location="cpu")
 
-# Initialize model with config (weights NOT loaded yet)
-model = GLiNER(gliner_config)
+    # Remove the mismatching weight entry manually
+    checkpoint.pop("token_rep_layer.bert_layer.model.embeddings.word_embeddings.weight")
 
-# Load raw model state dict from checkpoint
-checkpoint = torch.load("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/pytorch_model.bin", map_location="cpu")
+    # Load the rest of the model weights
+    model.load_state_dict(checkpoint, strict=False)
 
-# Remove the mismatching weight entry manually
-checkpoint.pop("token_rep_layer.bert_layer.model.embeddings.word_embeddings.weight")
+    # Resize embedding layer BEFORE loading weights
+    model.token_rep_layer.bert_layer.model.resize_token_embeddings(128004)
 
-# Load the rest of the model weights
-model.load_state_dict(checkpoint, strict=False)
+    model_name = "gliner-biomed_finetuned"
 
-# Resize embedding layer BEFORE loading weights
-model.token_rep_layer.bert_layer.model.resize_token_embeddings(128004)
+else:
+    # Load gliner_config.json manually
+    with open("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/gliner_config.json") as f:
+        raw_config = json.load(f)
 
-# Now load the model weights manually
-# model.load_state_dict(
-#     torch.load("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/pytorch_model.bin", map_location="cpu")
-# )
+    # Wrap it
+    gliner_config = DictNamespace(**raw_config)
 
-model_name = "gliner-biomed_finetuned"
+    # Initialize model with config (weights NOT loaded yet)
+    model = GLiNER(gliner_config)
+
+    # Load raw model state dict from checkpoint
+    checkpoint = torch.load("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/pytorch_model.bin", map_location="cpu")
+
+    # Remove the mismatching weight entry manually
+    checkpoint.pop("token_rep_layer.bert_layer.model.embeddings.word_embeddings.weight")
+
+    # Load the rest of the model weights
+    model.load_state_dict(checkpoint, strict=False)
+
+    # Resize embedding layer BEFORE loading weights
+    model.token_rep_layer.bert_layer.model.resize_token_embeddings(128004)
+
+    # Now load the model weights manually
+    # model.load_state_dict(
+    #     torch.load("./gliner-biomed-cache/models--Ihor--gliner-biomed-base-v1.0/snapshots/9bfb24c62899ce6cb9e1a3b0dceb4b633926bfe5/pytorch_model.bin", map_location="cpu")
+    # )
+
+    model_name = "gliner-biomed_finetuned"
 
 # Define the confidence threshold to be used in evaluation
 THRESHOLD = 0.6 
@@ -168,7 +194,7 @@ eval_data = new_data
 # Define the hyperparameters in a config variable
 config = SimpleNamespace(
     num_steps=5001, # 3000 # regulate number train, eval steps depending on the data size
-    eval_every=2500, #200,
+    eval_every=250, #200,
     
     train_batch_size=4, # regulate batch size depending on GPU memory available.
     
@@ -257,6 +283,13 @@ def train(model, config, train_data, eval_data=None):
 
     iter_train_loader = iter(train_loader)
 
+    # Initialize lists to track losses
+    training_losses = []
+    validation_losses = []
+
+    epoch_loss = 0  # Accumulate loss for the epoch
+    steps_in_epoch = len(train_loader)  # Number of steps in one epoch
+
     for step in pbar:
         try:
             x = next(iter_train_loader)
@@ -275,15 +308,24 @@ def train(model, config, train_data, eval_data=None):
             continue
 
         loss.backward()  # Compute gradients
-        torch.cuda.empty_cache()        # added to clear GPU memory
         optimizer.step()  # Update parameters
         scheduler.step()  # Update learning rate schedule
         optimizer.zero_grad()  # Reset gradients
+        torch.cuda.empty_cache()        # added to clear GPU memory
+
+        # Accumulate loss for the epoch
+        epoch_loss += loss.item()
 
         description = f"step: {step} | epoch: {step // len(train_loader)} | loss: {loss.item():.2f}"
         pbar.set_description(description)
 
-        if (step + 1) % config.eval_every == 0:
+        if (step + 1) % steps_in_epoch == 0:  # End of an epoch
+            avg_epoch_loss = epoch_loss / steps_in_epoch
+            print(f"Epoch {step // steps_in_epoch} completed. Average Training Loss: {avg_epoch_loss:.4f}")
+            training_losses.append(avg_epoch_loss)  # Track average loss for the epoch
+            epoch_loss = 0  # Reset epoch loss accumulator
+
+        if (step + 1) % steps_in_epoch == 0:  # End of an epoch
 
             model.eval()
 
@@ -293,24 +335,60 @@ def train(model, config, train_data, eval_data=None):
 
                 print(f"Step={step}\n{results}")
 
+                # Calculate validation loss
+                val_loss = 0
+                for batch in model.create_dataloader(eval_data["samples"], batch_size=32, shuffle=False):
+                    for k, v in batch.items():
+                        if isinstance(v, torch.Tensor):
+                            batch[k] = v.to(config.device)
+                    with torch.no_grad():
+                        val_loss += model(batch).item()
+                val_loss /= len(eval_data["samples"])
+                validation_losses.append(val_loss)
+
+                print(f"Validation Loss: {val_loss:.4f}")
+
             if not os.path.exists(config.save_directory):
                 os.makedirs(config.save_directory)
 
-            if model_name == "gliner-biomed_finetuned":
-                model.config = recursive_namespace_to_dict(model.config)
-                output_path = f"{config.save_directory}/{model_name}_finetuned_{step}"
-                model.save_pretrained(output_path)
-            else:
-                model.save_pretrained(f"{config.save_directory}/finetuned_{step}")
+            # save the intermediate best model
+            if val_loss < min(validation_losses[:-1], default=float('inf')):
+                print(f"Saving best model at step {step} with validation loss {val_loss:.4f}")
+                if model_name == "gliner-biomed_finetuned":
+                    model.config = recursive_namespace_to_dict(model.config)
+                    output_path = f"{config.save_directory}/{model_name}_finetuned3_best"
+                    model.save_pretrained(output_path)
+                else:
+                    model.save_pretrained(f"{config.save_directory}/finetuned_best")
 
             model.train()
+
+    # Plot training and validation losses
+    plt.figure(figsize=(10, 6))
+
+    # Plot training losses
+    plt.plot(range(len(training_losses)), training_losses, label="Training Loss")
+
+    # Plot validation losses
+    # Use the correct x-axis values for validation losses
+    validation_x = [i * (config.eval_every // steps_in_epoch) for i in range(len(validation_losses))]
+    plt.plot(validation_x, validation_losses, label="Validation Loss")
+
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.title("Training and Validation Loss")
+    plt.legend()
+    plt.savefig(f"{config.save_directory}/loss_plot3.png")
+    plt.show()
+
+output_path = f"outputs/{model_name}_finetuned3_T{str(THRESHOLD*100)}"
 
 if finetune_model:
     print('## LAUNCHING TRAINING ##')
     train(model, config, train_data, eval_data)
 
     print('## SAVING TRAINED MODEL ##')
-    output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
+    
     
     if model_name == "gliner-biomed_finetuned":
         model.config = recursive_namespace_to_dict(model.config)
@@ -321,13 +399,13 @@ if finetune_model:
     md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
 if generate_predictions:
-    output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
+    # output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
     print(f"## LOADING PRE-TRAINED MODEL {output_path} ##")
 
     if using_pretrained:
         md = model  # Load the pre-trained model as is
     else:
-        output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
+        # output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
         md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
     print(f"## GENERATING NER PREDICTIONS FOR {PATH_ARTICLES}")
