@@ -20,8 +20,8 @@ from importlib.metadata import version
 version('GLiNER')
 
 using_pretrained = False
-finetune_model = True
-generate_predictions = False
+finetune_model = False
+generate_predictions = True
 
 class DictNamespace(SimpleNamespace):
     def __init__(self, **kwargs):
@@ -72,7 +72,7 @@ load_fine_tuned = True
 if load_fine_tuned:
 
     # Load gliner_config.json manually
-    with open("./outputs/gliner-biomed_finetuned_finetuned2_T60.0/gliner_config.json") as f:
+    with open("./outputs/gliner-biomed_finetuned_finetuned3_T60.0/gliner_config.json") as f:
         raw_config = json.load(f)
 
     # Wrap it
@@ -82,7 +82,7 @@ if load_fine_tuned:
     model = GLiNER(gliner_config)
 
     # Load raw model state dict from checkpoint
-    checkpoint = torch.load("./outputs/gliner-biomed_finetuned_finetuned2_T60.0/pytorch_model.bin", map_location="cpu")
+    checkpoint = torch.load("./outputs/gliner-biomed_finetuned_finetuned3_T60.0/pytorch_model.bin", map_location="cpu")
 
     # Remove the mismatching weight entry manually
     checkpoint.pop("token_rep_layer.bert_layer.model.embeddings.word_embeddings.weight")
@@ -131,7 +131,7 @@ THRESHOLD = 0.6
 
 # Define the path to articles for which the final trained will generate predicted entities
 PATH_ARTICLES = "../../Articles/json_format/articles_dev.json" 
-PATH_OUTPUT_NER_PREDICTIONS = "../../Predictions/NER/gliner_biomed_finetuned_predicted_entities.json"
+PATH_OUTPUT_NER_PREDICTIONS = "../../Predictions/NER/gliner_biomed_finetuned3_predicted_entities.json"
 
 print('## LOADING TRAINING DATA ##')
 PATH_PLATINUM_TRAIN = "data/train_platinum.json"
@@ -402,11 +402,13 @@ if generate_predictions:
     # output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
     print(f"## LOADING PRE-TRAINED MODEL {output_path} ##")
 
-    if using_pretrained:
-        md = model  # Load the pre-trained model as is
-    else:
-        # output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
-        md = GLiNER.from_pretrained(output_path, local_files_only=True)
+    md = model
+
+    # if using_pretrained:
+    #     md = model  # Load the pre-trained model as is
+    # else:
+    #     # output_path = f"outputs/{model_name}_finetuned_T{str(THRESHOLD*100)}"
+    #     md = GLiNER.from_pretrained(output_path, local_files_only=True)
 
     print(f"## GENERATING NER PREDICTIONS FOR {PATH_ARTICLES}")
     with open(PATH_ARTICLES, 'r', encoding='utf-8') as file:

@@ -37,3 +37,11 @@ Macro-F1: 0.671
 Micro-precision: 0.7134
 Micro-recall: 0.8469
 Micro-F1: 0.7745
+
+# Gliner-biomed more finetuned
+Macro-precision: 0.6183
+Macro-recall: 0.7727
+Macro-F1: 0.6674
+Micro-precision: 0.739
+Micro-recall: 0.8389
+Micro-F1: 0.7857
