@@ -5,7 +5,7 @@ import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # DEFINE HERE THE PATH(S) TO YOUR PREDICTIONS
-PREDICTIONS_PATH_6_1 = 'gliner_biomed_finetuned_predicted_entities_eval_format.json' #'org_T61_BaselineRun_NuNerZero.json'
+PREDICTIONS_PATH_6_1 = 'org_T61_BaselineRun_NuNerZero.json' #'org_T61_BaselineRun_NuNerZero.json'
 PREDICTIONS_PATH_6_2 = 'org_T621_BaselineRun_ATLOP.json'
 PREDICTIONS_PATH_6_3 = 'org_T622_BaselineRun_ATLOP.json'
 PREDICTIONS_PATH_6_4 = 'org_T623_BaselineRun_ATLOP.json'
@@ -70,6 +70,9 @@ def eval_submission_6_1_NER(path):
     ground_truth_NER = dict()
     count_annotated_entities_per_label = {}
     
+    # open a file to write the output to
+    f = open('output.txt', 'w', encoding='utf-8')
+
     for pmid, article in ground_truth.items():
         if pmid not in ground_truth_NER:
             ground_truth_NER[pmid] = []
@@ -104,6 +107,12 @@ def eval_submission_6_1_NER(path):
     # count the number of missing entities per label (ones that were not predicted)
     count_missing_per_label = {label: 0 for label in list(count_annotated_entities_per_label.keys())}
 
+    # correct span but incorrect label
+    count_correct_span_incorrect_label_per_label = {label: 0 for label in list(count_annotated_entities_per_label.keys())}
+
+
+    f.write("\n=== Start: Incorrectly predicted entities per label =====================================================\n")
+    
     for pmid in predictions.keys():
         try:
             entities = predictions[pmid]['entities']
@@ -132,7 +141,50 @@ def eval_submission_6_1_NER(path):
             else:
                 count_incorrect_per_label[label] += 1
 
- 
+            # count if the (start_idx, end_idx, location, text_span) of the entity is in the ground truth
+            # but the label is not, keep a count of this
+            # also print the pmid, start_idx, end_idx, location, text_span, label of prediction and ground truth
+            # side-by-side for visual inspection
+            for gt_entry in ground_truth_NER[pmid]:
+                if (start_idx, end_idx, location, text_span) == gt_entry[:4]:
+                    if label != gt_entry[4]:
+                        count_correct_span_incorrect_label_per_label[label] += 1
+                        f.write(f"PMID: {pmid},\n \tstart_idx: {start_idx},\n \tend_idx: {end_idx},\n \tlocation: {location},\n \ttext_span: {text_span},\n \tlabel: predicted: {label}, ground truth: {gt_entry[4]}\n")
+                    break
+    
+    f.write("\n=== End: Incorrectly predicted entities per label ============================================================\n")
+
+    # count the number of missing entities per label
+    f.write("\n=== Start: Missing entities per label ========================================================================\n")
+    for gt_pmid in ground_truth_NER.keys():
+        for gt_entry in ground_truth_NER[gt_pmid]:
+            found = False
+            for entity in predictions[gt_pmid]['entities']:
+                if (gt_entry[0], gt_entry[1], gt_entry[2], gt_entry[3]) == (entity["start_idx"], entity["end_idx"], entity["location"], entity["text_span"]):
+                    found = True
+                    break
+            if not found:
+                f.write(f"PMID: {gt_pmid},\n \tstart_idx: {gt_entry[0]},\n \tend_idx: {gt_entry[1]},\n \tlocation: {gt_entry[2]},\n \ttext_span: {gt_entry[3]},\n \ground truth: {gt_entry[4]}\n")
+                found = False
+    f.write("\n=== End: Missing entities per label ============================================================================\n")
+
+
+
+    # count the number of extra predicted entities per label, we check only the start_idx and end_idx here
+    f.write("\n=== Start: Extra predicted entities per label ===================================================================\n")
+    for pmid in predictions.keys():
+        for entity in predictions[pmid]['entities']:
+            found = False
+            for gt_entry in ground_truth_NER[pmid]:
+                if (entity["start_idx"], entity["end_idx"]) == (gt_entry[0], gt_entry[1]):
+                    found = True
+                    break
+            if not found:
+                f.write(f"PMID: {pmid},\n \tstart_idx: {entity['start_idx']},\n \tend_idx: {entity['end_idx']},\n \tlocation: {entity['location']},\n \ttext_span: {entity['text_span']},\n \tlabel: {entity['label']}\n")
+                found = False
+    f.write("\n=== End: Extra predicted entities per label =======================================================================\n")
+
+
 
     # Print correct and incorrect predictions for each label, sort by the number of incorrect predictions
     for label in sorted(count_incorrect_per_label, key=count_incorrect_per_label.get, reverse=True):
@@ -167,6 +219,25 @@ def eval_submission_6_1_NER(path):
     f1 = f1 / n
 
     return precision, recall, f1, micro_precision, micro_recall, micro_f1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def eval_submission_6_2_binary_tag_RE(path):
     try:
