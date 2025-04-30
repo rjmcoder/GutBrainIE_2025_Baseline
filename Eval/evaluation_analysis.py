@@ -155,7 +155,7 @@ def eval_submission_6_1_NER(path):
     f.write("\n=== End: Incorrectly predicted entities per label ============================================================\n")
 
     # count the number of missing entities per label
-    f.write("\n=== Start: Missing entities per label ========================================================================\n")
+    f.write("\n=== Start: Missing entities per label =========================================================================\n")
     for gt_pmid in ground_truth_NER.keys():
         for gt_entry in ground_truth_NER[gt_pmid]:
             found = False
