@@ -166,7 +166,7 @@ def eval_submission_6_1_NER(path):
             if not found:
                 f.write(f"PMID: {gt_pmid},\n \tstart_idx: {gt_entry[0]},\n \tend_idx: {gt_entry[1]},\n \tlocation: {gt_entry[2]},\n \ttext_span: {gt_entry[3]},\n \ground truth: {gt_entry[4]}\n")
                 found = False
-    f.write("\n=== End: Missing entities per label ============================================================================\n")
+    f.write("\n=== End: Missing entities per label =============================================================================\n")
 
 
 
