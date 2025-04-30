@@ -5,7 +5,7 @@ import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # DEFINE HERE THE PATH(S) TO YOUR PREDICTIONS
-PREDICTIONS_PATH_6_1 = 'gliner_biomed_finetuned_predicted_entities_eval_format.json' #'org_T61_BaselineRun_NuNerZero.json'
+PREDICTIONS_PATH_6_1 = 'gliner_biomed_finetuned3_predicted_entities_eval_format.json' #'org_T61_BaselineRun_NuNerZero.json'
 PREDICTIONS_PATH_6_2 = 'org_T621_BaselineRun_ATLOP.json'
 PREDICTIONS_PATH_6_3 = 'org_T622_BaselineRun_ATLOP.json'
 PREDICTIONS_PATH_6_4 = 'org_T623_BaselineRun_ATLOP.json'
