@@ -1,0 +1,23 @@
+- Team ID
+    DS@GT-bioasq-task6
+
+- Task ID
+    6.1
+    
+- Run ID
+    1
+
+- Type of training applied
+    GLiNER-biomed from huggingface finetuned with dictionary based post processing
+
+- Pre-processing methods
+    Converted training annotations into a format suitable for GLiNER finetune (see https://github.com/MMartinelli-hub/GutBrainIE_2025_Baseline/blob/main/Utils/annotations_to_gliner_format.ipynb)
+
+- Training data used
+    Platinum, gold, and silver collections
+
+- Relevant details of the run
+    Trained for 10 epochs on Nvidia Quadro M4000 (8GB GPU memory) GPU with batch size = 4.
+
+- A link to a GitHub repository enabling easy reproducibility of the run
+    https://github.com/rjmcoder/GutBrainIE_2025_Baseline
